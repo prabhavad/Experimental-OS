@@ -23,17 +23,24 @@ if(sysCallNo==1) then
 	endwhile;
 	breakpoint;
 	//get Disk Free list
-	S3=3072+24;
+	
+	S3=3072+24; // start checking from 24th block in df
+	//df is at 6th page, 6*512 = 3072
+
 	while([S3]!=0 && S3<=3072+447) do
 		S3=S3+1;
 	endwhile;
-	breakpoint;
+
+
 	//No free Found
 	if([S3]!=0) then
 		[physicalSP-2]=-1;
 		ireturn;
 	endif;
+	
+	//Use the basic block
 	[S3]=1;
+
 	alias basicBlock S3;
 	basicBlock=basicBlock-3072;
 	
@@ -67,6 +74,98 @@ if(sysCallNo==1) then
 	ireturn;
 endif;
 
+if (sysCallNo == 4) then
+	//Check file is present
+	S3 = 0;
+	S4 = -1; //Store index in fat here
+	alias basicblock S5 ;
+	while(S3 < 64) do 
+		if ([FAT + S3]==fileName) then
+			S4=S3/8;  //if present set S4 to fat-table index
+			basicblock = [FAT + 2];			
+			break;
+		endif;
+		S3 = S3+8;
+	endwhile;
 
+	//File not found, return -1
 
+	if(S4==-1) then	
+		print("File Not Found in FAT");
+		[physicalSP - 2] = -1;
+		ireturn;
+	endif;
+
+	//Check System wide open file table
+	//If found return -1
+	S3 = 0;
+	while(S3 < 128) do
+		if([FILE_TABLE + S3] == S4) then
+			print("File Open");
+			[physicalSP - 2] = -1;
+			ireturn;
+		endif;
+		S3 = S3 + 2;	
+	endwhile;
+	
+	//Delete File -- Free Basic and Data Blocks, Set Fat entry as -1, 
+	
+	load (1,basicblock);
+	S3 = 0;
+	// Set basic block free in the df list
+	[3072 + basicblock] = 0;	
+	 
+	// Free each entry in basic block and data block
+	
+	while(S3<=255) do
+		if([512+S3] != -1) then	
+			//delete all items in the data block
+			//load it to scratchpad first
+		
+			load(1,[512+S3]);
+
+			//set all entries in data block to "" empty string
+
+			S6 = 0;
+			while(S6 < 512) do
+				[512 + S6] = "";
+				S6 = S6 + 1;
+			endwhile;
+		
+			//store the data back to disk;
+
+			store(1,[512+S3]);
+			
+			//free data block in df list
+			[3072 + [512 + S3]] = 0;		
+		endif;
+
+		//load basicblock again		
+		load(1,basicblock);
+
+		
+
+		//set basic block entry to ""
+		[512 + S3] = "";
+		
+		S3 = S3 + 1;
+	endwhile;
+	store(1,basicblock);
+
+	//Modify the Fat entry
+
+	//set basic block to -1
+	[FAT + S4*8 + 2] = -1;
+
+	//set filename to -1
+	[FAT + S4*8] = -1;
+	
+	//update disk
+	store (5,19);  // fat
+	store (6,20);  //disk free list
+	
+	//set return value as success and return
+	[physicalSP-2]=0;
+	ireturn;
+endif;
 

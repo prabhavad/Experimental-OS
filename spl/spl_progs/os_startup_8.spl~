@@ -1,0 +1,74 @@
+load (7,1);   //Exception handler
+load (8,2);   //Exception handler
+
+load (23,17); //int 7
+load (24,18); // int 7
+
+load (5,19);  // fat
+load (6,20);  //disk free list
+
+load (11,5);  //int 1
+load (12,6);  //int 1
+
+//////
+//LOAD INT 2-4
+//////
+
+load (9,3);   //timer int
+load (10,4);  //timer int
+
+//INIT Process
+
+[READY_LIST + 0] = 0; //sets entry for pid as 0
+
+//Load codes of INIT
+load(25,21);
+load(26,22);
+load(27,23);
+
+PTBR=1024;
+PTLR=4;
+
+[PTBR + 0] = 25;
+[PTBR + 1] = "01";
+[PTBR + 2] = 26;
+[PTBR + 3] = "01";
+[PTBR + 4] = 27;
+[PTBR + 5] = "01";
+[PTBR + 6] = 28;
+[PTBR + 7] = "01";
+
+//Set State as Running
+[READY_LIST +1] = 2;
+
+SP=3*512;
+//set ip=0 in Stack of INIT, 4th Page is stack(Physical:28 see PTBR)
+[28*512]=0;
+
+alias counter S0;
+counter = 0;
+//Set all entries of SystemWide open file table as -1, as no file is open 
+
+// There are two entries in FILE_TABLE, File index(in FAT Table) and open count, Only 64 files can be open at one time. 
+
+while(counter < 128) do
+	[FILE_TABLE + counter + 0] = -1; //no file open
+	[FILE_TABLE + counter + 1] = 0; //set file open count = 0
+	counter = counter + 2;
+endwhile;
+
+//Clear Set PerProcess file open table of INIT 
+//15-30 in PCB, Max 8 files can be open, structure same as FAT_TABLE, index in FAT_TABLE and count
+
+counter = 0;
+
+while(counter < 16) do
+	[READY_LIST + counter + 15] = -1;
+	[READY_LIST + counter + 16] = 0;
+	counter = counter + 2;
+endwhile;
+
+store (5,19);  // fat table update
+
+
+ireturn;
