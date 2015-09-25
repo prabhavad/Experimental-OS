@@ -1,0 +1,111 @@
+alias physicalSP S0;
+physicalSP = ([PTBR + 2*(SP/512)]*512 + (SP)%512);
+
+alias  sysCallNo S1;
+sysCallNo = [physicalSP-1];
+
+//seek system call
+
+if(sysCallNo == 6) then
+	//GET the arguments
+	alias fd S2;
+	fd = [physicalSP-4];
+	alias newlseek S3;
+	newlseek= [physicalSP-3];
+	
+	if(fd>=8 || fd<0) then
+		[physicalSP-2]=-1;
+		ireturn;
+	endif;
+	
+	alias PCB S4;
+	PCB = READY_LIST + ((PTBR-1024)/8)*32; //32*pid + READY)LIST 
+
+	alias sysIn S5;
+	alias lseek S6;
+
+	//index of system wide open file table in Per Process open file table
+	sysIn = [PCB + 15 + fd*2];
+	lseek = PCB + 16 + fd*2;
+	
+	//If index of system wide open file table in Per Process open file table is -1 return
+	if (sysIn==-1) then
+		[physicalSP-2]=-1;
+		ireturn;
+	endif;
+
+	alias fatIn S7;
+
+	fatIn = [FILE_TABLE + sysIn*2];
+	alias filesize S8;
+	filesize = [FAT + fatIn*8 + 1];
+	if(newlseek <= filesize && newlseek >=0) then
+		[lseek] = newlseek;
+	else
+		[physicalSP-2]=-1;
+		ireturn;
+	endif;
+	
+	[physicalSP-2] = 0;
+	ireturn;
+
+//REAd system call
+endif;
+if(sysCallNo == 7) then
+	//GET the arguments
+	alias fd S2;
+	fd = [physicalSP-4];
+	alias newlseek S3;
+	newlseek= [physicalSP-3];
+	
+	//invalid fd
+
+	if(fd>=8 || fd<0) then
+		[physicalSP-2]=-1;
+		ireturn;
+	endif;
+
+	alias PCB S4;
+	PCB = READY_LIST + ((PTBR-1024)/8)*32; //32*pid + READY)LIST 
+
+	alias sysIn S5;
+	alias lseek S6;
+
+	//index of system wide open file table in Per Process open file table
+	sysIn = [PCB + 15 + fd*2];
+	lseek = [PCB + 16 + fd*2];
+	
+	//If index of system wide open file table in Per Process open file table is -1 return
+	if (sysIn==-1) then
+		[physicalSP-2]=-1;
+		ireturn;
+	endif;
+	
+	alias fatIn S7;
+	fatIn = [FILE_TABLE + sysIn*2];
+	
+	//Get Basic Block of the file and load in scratch pad	
+	 
+	load(1,[FAT + fatIn*8 + 2]);
+	
+	
+	//check if lseek is at the end of the file
+
+	if(lseek == [FAT + fatIn*8 + 1]) then
+		[physicalSP-2]=-1;
+		ireturn;
+	endif;
+	
+	
+	alias  data S8;
+	data = [512 + lseek/512] ;
+	
+	load(1,data);
+	[physicalSP - 3] = [512 + (lseek % 512)];
+	
+	//increment lseek
+	[PCB + 16 + fd*2] = [PCB + 16 + fd*2] +1;
+	
+	[physicalSP-2]=0;
+	ireturn;	
+endif;

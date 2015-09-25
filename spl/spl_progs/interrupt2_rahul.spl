@@ -1,0 +1,114 @@
+alias physicalSP S0;
+physicalSP = ([PTBR + 2 * (SP / 512)] * 512) + (SP % 512);
+
+alias sysCallNo S1;
+sysCallNo = [physicalSP - 1];
+
+alias arg1 S2;
+
+arg1 = [physicalSP - 3];	//From the third position as the return value occupies the second
+
+//Open System Call
+if (sysCallNo == 2) then
+	S3 = FAT;
+	while (S3 <= (FAT + 512)) do
+		if (arg1 == [S3]) then
+			break;
+		endif;
+		S3 = S3 + 8;
+	endwhile;
+
+	//Return -1 if not found
+	if (S3 == (FAT + 520)) then
+		[physicalSP - 2] = -1;
+		ireturn;
+	endif;
+
+	//Search the System wide Open file table for the file
+	S4 = 0;
+	while (S4 < 128) do
+		if ([1344 + S4 + 0] == S3/8) then
+			break;
+		endif;
+		S4 = S4 + 2;
+	endwhile;
+
+	//If it fails, search for a free space
+	if (S4 >= 128) then
+		S4 = 0;
+		while (S4 < 128) do
+			if ([1344 + S4 + 0] == -1) then
+				break;
+			endif;
+			S4 = S4 + 2;
+		endwhile;
+	endif;
+
+	//Return -1 in case of no free space
+	if (S4 >= 158) then
+		[physicalSP - 2] = -1;
+		ireturn;
+	endif;
+
+	alias currentPID S5;
+	currentPID = (PTBR - 1024) / 8;
+
+	alias currentPCB S6;
+	currentPCB = READY_LIST + 32 * currentPID;
+
+	S7 = 0;
+	while (S7 < 16) do
+		if ([currentPCB + 15 + S7] == -1) then
+			break;
+		endif;
+		S7 = S7 + 2;
+	endwhile;
+
+	if (S7 >= 16) then
+		[physicalSP - 2] = -1;
+		ireturn;
+	endif;
+
+	[currentPCB + 15 + S7] = S4/2;
+	[currentPCB + 15 + S7 + 1] = 0;
+
+	[1344 + S4 + 0] = S3/8;
+	[1344 + S4 + 1] = [1344 + S4 + 1] + 1;
+
+	[physicalSP - 2] = S7/2;
+	ireturn;
+
+endif;
+
+if (sysCallNo == 3) then
+	//Checking validity of fileDescriptor
+	if ((arg1 < 0) && (arg1 > 7)) then
+		[physicalSP - 2] = -1;
+		ireturn;
+	endif;
+
+	alias currentPIDc S3;
+	currentPIDc = (PTBR - 1024) / 8;
+
+	alias currentPCBc S4;
+	currentPCBc = READY_LIST + 32 * currentPIDc;
+
+	if ([currentPCBc + 15 + (2 * arg1)] == -1) then
+		[physicalSP - 2] = -1;
+		ireturn;
+	endif;
+
+	S5 = [currentPCBc + 15 + (2 * arg1)];
+
+	//Change system wide open file table entry
+	[1344 + (2 * S5) + 1] = [1344 + (2 * S5) + 1] - 1;
+	if ([1344 + (2 * S5) + 1] == 0) then
+		[1344 + (2 * S5) + 0] = -1;
+	endif;
+
+	//Invalidate per process open file table entry
+	[currentPCBc + 15 + (2 * arg1)] = -1;
+
+	[physicalSP - 2] = 0;
+	ireturn;
+endif;

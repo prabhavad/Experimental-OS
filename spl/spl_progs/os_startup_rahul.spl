@@ -1,0 +1,73 @@
+load (7, 1);
+load (8, 2);
+load (23, 17);
+load (24, 18);
+[READY_LIST + 0] = 0;
+load(25,21);
+load(26,22);
+load(27,23);
+PTBR = 1024;
+PTLR = 4;
+[PTBR + 0] = 25;
+[PTBR + 1] = "01";
+[PTBR + 2] = 26;
+[PTBR + 3] = "01";
+[PTBR + 4] = 27;
+[PTBR + 5] = "01";
+[PTBR + 6] = 28;
+[PTBR + 7] = "01";
+[READY_LIST + 1] = 2;
+SP = 3 * 512;
+[28 * 512] = 0;
+load (11, 5);
+load (12, 6);
+load (9, 3);
+load (10, 4);
+
+//For Create system call
+
+load (5, 19);	//FAT
+load (6, 20);	//Disk free list
+
+
+//For all other file system calls
+
+//Setting all entries of the System-Wide Open File Table to invalid
+
+alias counter S0;
+
+counter = 0;
+
+while (counter < 128) do
+	[FILE_TABLE + counter + 0] = -1;
+	[FILE_TABLE + counter + 1] = 0;
+	counter = counter + 2;
+endwhile;
+
+//Setting all entries of Per Process Open File Table of INIT to invalid
+
+alias counter2 S0;
+
+counter2 = 0;
+
+while (counter2 < 16) do
+	[1536 + 15 + counter2 + 0] = -1;
+	[1536 + 15 + counter2 + 1] = -1;
+	counter2 = counter2 + 2;
+endwhile;
+
+//Load other interrupts
+
+//INT 2
+load (13, 7);
+load (14, 8);
+
+//INT 3
+//load (15, 9);
+//load (16, 10);
+
+//INT 4
+//load (17, 11);
+//load (18, 12);
+
+ireturn;

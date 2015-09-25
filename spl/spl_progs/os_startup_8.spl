@@ -10,6 +10,16 @@ load (6,20);  //disk free list
 load (11,5);  //int 1
 load (12,6);  //int 1
 
+load (13,7);  //int 2
+load (14,8);  //int 2
+
+load (15,9);  //int 3
+load (16,10);  //int 3
+
+load (17,11);  //int 4
+load (18,12);  //int 4
+
+
 //////
 //LOAD INT 2-4
 //////
@@ -60,11 +70,11 @@ endwhile;
 //Clear Set PerProcess file open table of INIT 
 //15-30 in PCB, Max 8 files can be open, structure same as FAT_TABLE, index in FAT_TABLE and count
 
-counter = 0;
+counter = 15;
 
-while(counter < 16) do
-	[READY_LIST + counter + 15] = -1;
-	[READY_LIST + counter + 16] = 0;
+while(counter <= 30) do
+	[READY_LIST + counter] = -1;
+	[READY_LIST + counter + 1] = 0;
 	counter = counter + 2;
 endwhile;
 
