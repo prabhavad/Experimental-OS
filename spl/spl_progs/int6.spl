@@ -1,0 +1,191 @@
+// PCB
+//===========================================================================
+//| 0	| 1	    | 2		|3	 |4	   |5	  |6	  |7-14	  |15-30    | 31	|
+//| PID | State | BP	|SP	 |IP   |PTBR  |PTLR	  |R0-R7  |PPOFT	| Free	|
+//===========================================================================
+
+//print("INT EXEC");
+alias physicalSP S0;
+physicalSP = ([PTBR + 2*(SP/512)]*512 + (SP)%512);
+
+alias fileName S1;
+
+if([physicalSP-1]==11) then
+	[physicalSP-2]=(PTBR-1024)/8;
+	ireturn;
+endif;
+
+if([physicalSP-1]==12) then
+	[physicalSP-2]=[READY_LIST + (PTBR-1024)*4 + 31];
+	ireturn;
+endif;
+
+
+fileName = [physicalSP-3];
+//print(fileName);
+
+alias fatIndex S2;
+fatIndex = 0;
+
+while(fatIndex <= 63) do
+	if([FAT + fatIndex*8]==fileName) then
+		break;
+	endif;
+	fatIndex = fatIndex + 1;
+endwhile;
+
+
+if(fatIndex > 63) then
+	
+	print ("E1");
+	//print(fileName);
+	[physicalSP - 2] = -1;
+	ireturn;
+endif;
+
+//Load baisc block of the program in the scratchpad
+//Count the total number of pages in the program =: pagesNew
+
+
+load(1,[FAT + fatIndex*8 + 2]);
+
+
+alias counter S3;
+counter = 0;
+
+alias pagesNew S4;
+pagesNew = 0;
+
+while(counter < 512) do
+	if([512+counter]== -1 || [512+counter]== "" ) then
+		break;
+	else
+		pagesNew = pagesNew + 1;
+	endif;
+	counter = counter + 1;
+endwhile;
+
+
+if(pagesNew > 3) then
+	print("E2");
+	[physicalSP -2] = -1;
+	ireturn;
+endif;
+
+counter = 0;
+while(counter < 8) do
+	//deallocate the memory
+	if([PTBR+counter+1]=="01" || [PTBR+counter+1]=="11") then
+		[MEM_LIST + [PTBR + counter]]=0;	
+	endif;
+	[PTBR + counter]=-1;
+	[PTBR + counter+1]="00";
+	counter = counter + 2;
+endwhile;
+
+//count the free pages in MEM_LIST
+
+alias freeP S5;
+freeP = 0;
+counter = 0;
+
+while(counter <= 63) do
+	if([MEM_LIST + counter]==0) then
+		freeP = freeP + 1;
+	endif;
+	counter = counter + 1;
+endwhile;
+
+// if free pages in memory is less than required pages then exit
+
+if(freeP < (pagesNew+1)) then
+	print("E3");
+	[physicalSP -2] =-2;
+	ireturn;
+endif;
+
+//LOAD
+
+counter = 0;
+alias c2 S6;
+c2 = 0;
+alias c3 S7;
+c3 = 0;
+
+//for each valid page in basic block of program, find a free mem page
+//store the data block of the program in that free mem page
+
+while((counter < 512) && (c3 < pagesNew)) do
+	
+	//if entry in basic block is valid
+	
+	if([512 + counter] != -1 || [512 + counter] != "") then
+		
+		//search for a free memory page
+		//when found store the data block to the found page
+		
+		while(c2 < 64) do
+			if([MEM_LIST + c2] == 0) then
+				[MEM_LIST + c2]=1;
+
+				load(c2,[512+counter]);
+				[PTBR + c3*2] = c2;
+				[PTBR + c3*2 + 1] = "01";
+				c3 = c3 + 1;
+				break;
+			endif;
+			c2 = c2 + 1;
+		endwhile;
+		
+		
+	else
+		break;
+	endif;
+	counter = counter + 1;
+endwhile;
+
+//assign a stack page
+
+while(c2 < 64) do
+	if([MEM_LIST + c2]==0) then
+		[MEM_LIST + c2]=1;
+		[PTBR + 3*2] = c2;
+		[PTBR + 3*2 + 1] = "01";
+		break;
+	endif;
+	c2 = c2 +1;
+endwhile;
+		
+
+
+//close all files opened by current process
+
+counter = 15;
+alias PCB S5;
+PCB = READY_LIST + (PTBR-1024)*4;  
+
+while(counter < 31) do
+	if([PCB + counter]!=-1) then
+		//close the file
+		//decrement file open count, invaliditate swoft entry if filecount is 0
+		
+		[FILE_TABLE + [PCB + counter]*2 + 1] = [FILE_TABLE + [PCB + counter]*2 + 1]-1;
+		
+		if([FILE_TABLE + [PCB + counter]*2 + 1]==0) then
+			[FILE_TABLE + [PCB + counter]*2] = -1;
+		endif;
+		
+		[PCB+counter] = -1;
+		
+	endif;
+	counter = counter + 2;
+endwhile;
+
+[physicalSP - 2] = 1;
+SP = 3*512;
+physicalSP = ([PTBR + 2*(SP/512)]*512 + (SP)%512);
+
+
+
+[physicalSP] = 0;
+ireturn;

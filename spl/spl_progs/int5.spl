@@ -1,0 +1,177 @@
+// PCB
+//===========================================================================
+//| 0	| 1	    | 2		|3	 |4	   |5	  |6	  |7-14	  |15-30    | 31	|
+//| PID | State | BP	|SP	 |IP   |PTBR  |PTLR	  |R0-R7  |PPOFT	| Free	|
+//===========================================================================
+
+S15 = (PTBR-1024)/8;
+
+
+alias physicalSP S0;
+
+physicalSP = ([PTBR + 2*(SP/512)]*512 + (SP)%512);
+
+alias countter S1;
+countter = 0;
+
+// Search for free entry in pcb; terminated process (state 0)
+
+while(countter<=31) do
+	if([READY_LIST + countter*32 + 1] == 0) then
+		break;
+	endif;
+	countter= countter+1;
+endwhile;
+
+//if not found return 0
+
+if(countter>31) then
+	[physicalSP - 2] = -1;
+	print("Er1");
+	ireturn;
+endif;
+
+alias pcbIndex S1; // pcbIndex = countter
+
+
+
+
+alias counter S3;
+alias pages_process S2;
+
+//count the number of valid pages in the parent process page table
+pages_process = 0;
+counter = 1;
+while(counter < 8) do
+	if ([PTBR + counter] == "01" || [PTBR + counter]=="11") then
+		pages_process = pages_process + 1;
+	endif;
+	counter = counter + 2;
+endwhile;
+
+//count the number of free pages in MEM_LIST
+
+alias free_pages S4;
+free_pages = 0;
+counter = 0;
+
+while(counter < 64) do
+	if([MEM_LIST + counter] == 0) then
+		free_pages = free_pages + 1;
+	endif;
+	counter = counter + 1;
+endwhile;
+
+if(free_pages < pages_process) then
+	print(free_pages);
+	print(pages_process);
+	print("Er2");
+	[physicalSP - 2] = -1;
+	ireturn;
+endif;
+
+//allocate pages for child process
+
+counter = 25;  // for free page in Memory
+alias counter2 S5; // 0-4 
+
+alias child_ptbr S6;
+alias parent_ptbr S7;
+alias x S8;
+
+child_ptbr = pcbIndex*8 + PAGE_TABLE;
+parent_ptbr = PTBR;
+
+counter2 = 0;
+while(counter2 < 8) do
+	if([MEM_LIST + counter] == 0) then
+		if([PTBR + counter2+1] =="01" || [PTBR + counter2+1] =="11") then
+			//print("assigned");
+			//print(counter);
+			[MEM_LIST + counter] = 1;
+			//copy
+			[child_ptbr + counter2 + 1] = [PTBR + counter2 + 1];
+			[child_ptbr + counter2] = counter;			
+			x=0;
+			while(x < 512) do
+				[counter*512 + x] = [[parent_ptbr + counter2]*512 + x];
+				x = x + 1;
+			endwhile;
+			counter2 = counter2 + 2;
+			counter = counter + 1;
+		else
+			counter2 = counter2 + 2;		
+		endif;	
+	else
+		counter = counter + 1;			
+	endif;
+endwhile;
+
+//PCB
+// 0-pid 1-state 2-bp 3-sp 4-ip 5-ptbr 6-ptlr 7-14 - r0-r7 15-30 - perprocess open file table 31-free
+
+//set child_ptbr in pcb
+
+//Set PID of the process as the PCB Index
+[READY_LIST + pcbIndex*32] = pcbIndex;
+//print("child");
+//print(pcbIndex);
+
+[READY_LIST + pcbIndex*32 + 5] = child_ptbr;
+[READY_LIST + pcbIndex*32 + 6] = 4;
+
+[READY_LIST + pcbIndex*32 + 0] = pcbIndex;
+
+//ip(logical) of parent is in stack, set child's ip
+
+[READY_LIST + pcbIndex*32 + 4] = [physicalSP];
+
+[READY_LIST + pcbIndex*32 + 3] = SP-1;
+
+[READY_LIST + pcbIndex*32 + 2] = BP;
+
+[READY_LIST + pcbIndex*32 + 7]  = R0;
+[READY_LIST + pcbIndex*32 + 8]  = R1;
+[READY_LIST + pcbIndex*32 + 9]  = R2;
+[READY_LIST + pcbIndex*32 + 10] = R3;
+[READY_LIST + pcbIndex*32 + 11] = R4;
+[READY_LIST + pcbIndex*32 + 12] = R5;
+[READY_LIST + pcbIndex*32 + 13] = R6;
+[READY_LIST + pcbIndex*32 + 14] = R7;
+
+//set Parent PID
+[READY_LIST + pcbIndex*32 + 31] = S15;
+
+// Per-Process Open File Table
+counter = 15;
+while(counter < 31) do
+	[READY_LIST + pcbIndex*32 + counter] = [READY_LIST + (PTBR-1024)*4 + counter];
+
+	[READY_LIST + pcbIndex*32 + counter+1] = [READY_LIST + (PTBR-1024)*4 + counter+1];
+	if([READY_LIST + (PTBR-1024)*4] != -1) then
+		[FILE_TABLE + [READY_LIST + (PTBR-1024)*4]*2 + 1] = [FILE_TABLE + [READY_LIST + (PTBR-1024)*4]*2 + 1]+1;
+	endif;	
+	counter=counter+2;
+endwhile;
+
+//Make State of child process Ready
+[READY_LIST + pcbIndex*32 + 1] = 1;
+
+//Return Value in Parent Process
+[physicalSP-2] = pcbIndex;
+
+
+alias childPhysicalSp S9;
+childPhysicalSp = ([child_ptbr + 2*((SP-1)/512)]*512 + (SP-1)%512);
+
+//Return Value in Child Process
+
+[childPhysicalSp - 1] = -2;
+
+//print("PID Parent");
+//print(S15);
+//
+//print("PID Child");
+//print(pcbIndex);
+
+ireturn; 

@@ -1,3 +1,9 @@
+// PCB
+//===========================================================================
+//| 0	| 1	    | 2		|3	 |4	   |5	  |6	  |7-14	  |15-30    | 31	|
+//| PID | State | BP	|SP	 |IP   |PTBR  |PTLR	  |R0-R7  |PPOFT	| Free	|
+//===========================================================================
+
 alias physicalSP S0;
 physicalSP = ([PTBR + 2*(SP/512)]*512 + (SP)%512);
 
@@ -13,6 +19,7 @@ if(sysCallNo == 2) then
 	S3 = 0;
 	
 	//get FAT index of the file to be open
+	
 	while([FAT + 8*S3]!=fileName && S3<64) do
 		S3=S3+1;
 	endwhile;
@@ -23,7 +30,7 @@ if(sysCallNo == 2) then
 		[physicalSP-2]=-1;
 		ireturn;
 	endif;
-		
+	
 	//check in system wide file table if the file is already open
 	//store the index in S4
 
@@ -39,15 +46,14 @@ if(sysCallNo == 2) then
 		while([FILE_TABLE + S4*2]!=-1 && S4<64) do
 			S4=S4+1;
 		endwhile;
-		if(S4>64) then
+		if(S4>=64) then
 			print "No space in system wide open file table";
 			[physicalSP-2]=-1;
 			ireturn;
 		endif;
 	endif;
 	
-	//print S4;
-	//print "S4";
+	
 
 	//Store the PCB value of the current process in S5
 	alias PCB S5;
@@ -68,17 +74,18 @@ if(sysCallNo == 2) then
 
 	//S6 has the index to free entry
 	[PCB + S6] = S4;
-	[PCB + S6] = 0;
+	[PCB + S6 + 1] = 0;
 
 	//update the system file open table
 	//store the fat index and increment file open count
 	[FILE_TABLE + S4*2]=S3;
 	[FILE_TABLE + S4*2+1]=[FILE_TABLE + S4*2+1]+1;
-
+	
 	[physicalSP-2]=(S6-15)/2;
 	ireturn;
 endif;
 
+//delete
 if(sysCallNo == 3) then
 	alias fd S2;	
 	fd = [physicalSP -3];
@@ -117,6 +124,3 @@ if(sysCallNo == 3) then
 	[physicalSP -2] =0;
 	ireturn;
 endif;
-
-
-

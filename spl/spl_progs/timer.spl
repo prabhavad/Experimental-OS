@@ -1,3 +1,10 @@
+// PCB
+//===========================================================================
+//| 0	| 1	    | 2		|3	 |4	   |5	  |6	  |7-14	  |15-30    | 31	|
+//| PID | State | BP	|SP	 |IP   |PTBR  |PTLR	  |R0-R7  |PPOFT	| Free	|
+//===========================================================================
+
+
 // Find PID of currently running process
 
 alias currentPID S0;
@@ -86,6 +93,7 @@ SP = SP + 1;
 alias newphysicalSP S2;
 
 newphysicalSP = ( [PTBR + 2*(SP/512)] * 512) + (SP % 512);
+
 [ newphysicalSP ] = [ newPCB + 4 ];
 
 //Set process state to RUNNING

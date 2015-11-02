@@ -1,0 +1,215 @@
+// PCB
+//===========================================================================
+//| 0	| 1	    | 2		|3	 |4	   |5	  |6	  |7-14	  |15-30    | 31	|
+//| PID | State | BP	|SP	 |IP   |PTBR  |PTLR	  |R0-R7  |PPOFT	| Free	|
+//===========================================================================
+//print("IN INT 7");
+
+alias physicalSP S0;
+physicalSP = ([PTBR + 2*(SP/512)]*512 + (SP)%512);
+S15 = (PTBR-1024)/8;
+
+
+// WAIT
+
+if([physicalSP-1]==13) then
+	alias waitingPID S2;
+
+	waitingPID = [physicalSP-3];
+	alias PCB S3;
+	PCB = READY_LIST + waitingPID*32;
+	
+	//check if waiting for itself or process that is terminated
+	//if yes, return error
+	
+	if(waitingPID == S15) then
+		[physicalSP-2]=-1;
+		ireturn;
+	endif;
+	
+	if([PCB + 1] == 0) then
+		print(waitingPID);
+		
+		[physicalSP-2]=-2;
+		ireturn;
+	endif;
+	
+	PCB = READY_LIST + S15*32;
+	[PCB + 1] = 100 + waitingPID;
+	[PCB + 2] = BP;
+	[PCB + 3] = SP-1;
+	[PCB + 4] = [physicalSP];
+	[PCB + 5] = PTBR;
+	[PCB + 6] = 4;
+	[PCB+7] = R0;
+	[PCB+8] = R1;
+	[PCB+9] = R2;
+	[PCB+10] = R3;
+	[PCB+11] = R4;
+	[PCB+12] = R5;
+	[PCB+13] = R6;
+	[PCB+14] = R7;
+	 
+	//find next ready process
+	alias counter S4;
+	counter = 0;
+	while(counter <= 31) do
+		if([READY_LIST + counter*32 + 1]==1) then
+			break;
+		endif;
+		counter = counter + 1;
+	endwhile;
+
+	//counter has the pid, pcbIndex of the next process
+
+	//load all registers from its pcb
+
+	PCB = READY_LIST + counter*32;
+
+	[PCB + 1] = 2;
+
+	BP = [PCB + 2];
+	SP = [PCB + 3] + 1;
+	PTBR = [PCB + 5];
+	PTLR = [PCB + 6];
+	R0 = [PCB + 7];
+	R1 = [PCB + 8];
+	R2 = [PCB + 9];
+	R3 = [PCB + 10];
+	R4 = [PCB + 11];
+	R5 = [PCB + 12];
+	R6 = [PCB + 13];
+	R7 = [PCB + 14];
+	[physicalSP-2] = 0;
+	
+	physicalSP = ([PTBR + 2*(SP/512)]*512 + (SP)%512);
+	[physicalSP] = [PCB + 4];
+	//print("EXITING PID");
+	//print(S15);
+		
+	ireturn;
+endif;
+
+//SIGNAL
+if([physicalSP-1]==14) then
+	alias waitingPID S2;
+	waitingPID = S15;
+	alias counter S3;
+	counter = 0;
+	while(counter <= 31) do
+		if([READY_LIST + counter*32 + 1]==(100 + S2)) then
+			[READY_LIST + counter*32 + 1]=1;
+		endif;
+		counter = counter+1;
+	endwhile;
+	[physicalSP-2]=0;
+endif;
+
+
+
+alias counter S1;
+alias flag S2;
+flag=0;
+counter=0;
+
+
+//make all waiting process ready
+
+counter = 0;
+while(counter <= 31) do
+	if([READY_LIST + counter*32 + 1]==(100 + S15)) then
+		[READY_LIST + counter*32 + 1]=1;
+	endif;
+	counter = counter+1;
+endwhile;
+
+counter = 0;
+while(counter <= 31) do
+	if([READY_LIST + counter*32 + 1]==1) then
+		flag=flag + 1;
+		break;
+	endif;
+	counter = counter + 1;
+endwhile;
+
+if(flag==0) then
+	//print("EXIT FIN");
+	halt;
+endif;
+
+alias PCB S2;
+PCB = READY_LIST + (PTBR-1024)*4;
+counter = 15;
+while(counter <=30) do
+	if([PCB + counter]!=-1) then
+		// close the file
+		// swoft index = [PCB + counter]
+		// decrement the file open count
+		// if file open count is 0, invaliditate the entry
+		
+		[FILE_TABLE + [PCB+counter]*2 + 1] =[FILE_TABLE + [PCB+counter]*2 + 1] -1;
+		
+		if([FILE_TABLE + [PCB+counter]*2 + 1] == 0) then
+			[FILE_TABLE + [PCB+counter]*2]=-1;
+		endif;
+		
+		//invaliditate the ppoft index on ppoft
+		[PCB + counter] = -1;
+		[PCB + counter + 1] = 0;
+	
+	endif;
+	counter = counter + 2;
+endwhile;
+
+[PCB + 1] = 0;
+
+alias Pagetable S3;
+Pagetable = [PCB + 5];
+
+//Free the pages in Memory Free list if the entry in page table is valid
+counter = 0;
+while(counter<4) do
+	if([Pagetable + 2*counter +1]=="11" || [Pagetable + 2*counter +1]=="01") then
+		[MEM_LIST + [Pagetable + 2*counter]] = 0;
+	endif;
+	[Pagetable + 2*counter +1]="00";
+	[Pagetable + 2*counter]=-1;
+	counter = counter+1;
+endwhile;
+
+
+
+//find next ready process
+counter = 0;
+while(counter <= 31) do
+	if([READY_LIST + counter*32 + 1]==1) then
+		break;
+	endif;
+	counter = counter + 1;
+endwhile;
+
+//counter has the pid, pcbIndex of the next process
+
+//load all registers from its pcb
+
+PCB = READY_LIST + counter*32;
+
+[PCB + 1] = 2;
+
+BP = [PCB + 2];
+SP = [PCB + 3] + 1;
+PTBR = [PCB + 5];
+PTLR = [PCB + 6];
+R0 = [PCB + 7];
+R1 = [PCB + 8];
+R2 = [PCB + 9];
+R3 = [PCB + 10];
+R4 = [PCB + 11];
+R5 = [PCB + 12];
+R6 = [PCB + 13];
+R7 = [PCB + 14];
+
+physicalSP = ([PTBR + 2*(SP/512)]*512 + (SP)%512);
+[physicalSP] = [PCB + 4];
+
+ireturn;

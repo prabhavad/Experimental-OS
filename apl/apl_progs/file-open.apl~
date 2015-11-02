@@ -16,7 +16,6 @@ integer main()
 	
 	status =  Write(fd2,"wewe");
 	
-	
 	print(status);
 	
 	string c;

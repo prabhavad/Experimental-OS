@@ -4,6 +4,7 @@ physicalSP = ([PTBR + 2*(SP/512)]*512 + (SP)%512);
 alias  sysCallNo S1;
 sysCallNo = [physicalSP-1];
 breakpoint;
+
 // Write System Call
 if(sysCallNo == 5) then
 	alias fd S2;	
@@ -30,12 +31,11 @@ if(sysCallNo == 5) then
 		[physicalSP-2]=-1;
 		ireturn;
 	endif;
-	print("SysIn");
-	print(sysIn);
+
 	alias fatIn S6;
-
+	
 	fatIn = [FILE_TABLE + sysIn*2];
-
+	
 	//Get Basic Block of the file and load in scratch pad
 	 
 	load(1,[FAT + fatIn*8 + 2]);
@@ -45,7 +45,7 @@ if(sysCallNo == 5) then
 	
 	//if entry in basic block is -1, find a new empty block 
 	if(data == -1) then
-		data=0;
+		data=24;
 		while(data<=447) do
 			if([DISK_LIST + data] == 0 ) then
 				[DISK_LIST + data] = 1;
@@ -73,8 +73,7 @@ if(sysCallNo == 5) then
 	
 	[PCB + 16 + fd*2] = [PCB + 16 + fd*2] + 1;
 	[physicalSP - 2] = 0;
-	print("LseekValue");
-	print ([PCB + 16 + fd*2]);
+	
 	ireturn;
 endif;
 	

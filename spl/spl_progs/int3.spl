@@ -39,6 +39,11 @@ if(sysCallNo == 6) then
 	fatIn = [FILE_TABLE + sysIn*2];
 	alias filesize S8;
 	filesize = [FAT + fatIn*8 + 1];
+
+	if(newlseek != 0) then
+		newlseek = [lseek] + newlseek;
+	endif;
+	
 	if(newlseek <= filesize && newlseek >=0) then
 		[lseek] = newlseek;
 	else
@@ -55,8 +60,7 @@ if(sysCallNo == 7) then
 	//GET the arguments
 	alias fd S2;
 	fd = [physicalSP-4];
-	alias newlseek S3;
-	newlseek= [physicalSP-3];
+	
 	
 	//invalid fd
 

@@ -1,0 +1,190 @@
+//print "In Exec";
+alias phySp S0;
+phySp = ([PTBR+2*(SP/512)]*512) + (SP%512);
+alias syscallno S1;
+syscallno = [phySp-1];
+if (syscallno == 9) then //implement exec
+   alias filename S2;
+   alias fatindex S3;
+   alias basicblock S4;
+   alias PPFTstart S12;
+   filename = [phySp-3];
+   fatindex = 0;
+   // check if the file exists in fat block
+   while ( fatindex < 512) do
+         if ([FAT+fatindex]==filename) then
+            //print "FileFound";
+            break;
+       endif;
+   fatindex=fatindex+8;    
+   endwhile;
+   
+   if (fatindex == 512) then
+      //print "FilenotFound";
+      [phySp-2]=-1;
+      ireturn;
+   endif;
+   //fetch the basic block into scratchpad
+      basicblock = [FAT+fatindex+2];
+      if ( basicblock == -1) then
+        //print "IVbaiscblk";
+         [phySp-2]=-1;
+         ireturn;
+      endif;
+   load (1,basicblock);
+   alias requiredPages S5;
+   
+   alias usedPages S6;
+   alias currentPTBR S7;
+   alias currentPID S8;
+   alias pages S10;
+   alias i S13;
+   currentPID = ((PTBR-1024)/8);
+   i = 0;
+   
+   requiredPages = 0;
+   while (requiredPages < 512) do
+         if (([512+requiredPages]) == "" || ([512+requiredPages] == -1)) then
+            break;
+         endif;
+         requiredPages = requiredPages + 1;
+         if (requiredPages > 3) then
+            //print "Exccedednumofpgs";
+            [phySp-2]=-1;
+            ireturn;
+         endif;
+   endwhile;
+   currentPTBR = PAGE_TABLE + currentPID*8 ;   
+   i = 0;
+   usedPages=0;
+   while ( i < 6 ) do   
+      if ([currentPTBR+i]!=-1) then
+         usedPages=usedPages+1;
+      endif;
+      i=i+2;
+   endwhile;
+   
+   // usedPages  >= requiredPages ie: excess pages allocated
+   //deallocate the excess pages
+   //print "UsedPages";
+   //print usedPages;
+   //print "ReqPAges";
+   //print requiredPages;
+   if (usedPages >= requiredPages) then
+         i=0;
+         
+         while (i<requiredPages) do
+            if ([512+i]!=-1) then
+               load([currentPTBR+i*2],[512+i]);
+               [currentPTBR+i*2+1]="01";
+               [MEM_LIST+[currentPTBR+i*2]]=1;
+            endif;
+         i=i+1;
+         endwhile;
+      while (i < usedPages) do
+            [MEM_LIST+[currentPTBR+i*2]]=0;
+            [currentPTBR+i*2]=-1;
+            [currentPTBR+i*2+1]="00";
+            i=i+1;
+      endwhile;
+   endif;
+   
+   //usedPages < requiredPages ie: new process requires more pages
+   if (usedPages < requiredPages) then
+      i = 25;
+      pages=0;
+      //check for sufficient memory
+      while (pages+usedPages < requiredPages) do
+         if ( i == 64 ) then
+            //print "NoMemory";
+            [phySp-2]=-1;
+            ireturn;
+         endif;
+         while ( i < 64 ) do
+            if ([MEM_LIST+i]==0) then
+               pages=pages+1;
+               i=i+1;
+               break;
+            endif;
+         i = i + 1;   
+         endwhile;
+         
+      endwhile;
+      //load the already allocated pages
+      i=0;
+      currentPTBR = PAGE_TABLE + currentPID*8 ;
+      while ( i < usedPages) do
+         if ([512+i]!=-1) then
+            load([currentPTBR+i*2],[512+i]);
+            [currentPTBR+i*2+1]="01";
+            [MEM_LIST+[currentPTBR+i*2]]=1;
+         endif;
+      i=i+1;     
+      endwhile;
+      pages=25;
+      while ( i < requiredPages ) do
+         
+         while (pages < 64 ) do
+            if ([MEM_LIST + pages]==0) then
+               pages=pages+1;
+               break;
+            endif;
+         pages=pages+1;   
+         endwhile;
+         
+         load(pages-1,[512+i]);
+         [currentPTBR + i*2] = pages-1;
+         [currentPTBR + i*2 + 1] = "01";
+         [MEM_LIST + [currentPTBR+i*2]]=1;
+         i=i+1;
+      endwhile;
+   endif;
+   
+//close all the files corresponding to the old process   
+PPFTstart = READY_LIST + currentPID*32 + 15;
+i = 0; //i plays the role of a file descriptor
+   while ( i < 8) do
+      if ([PPFTstart+i*2]==-1) then
+         i=i+1;
+         continue;
+      endif;
+      [[PPFTstart+i*2]+FILE_TABLE+1]=[[PPFTstart+i*2]+FILE_TABLE+1]-1;
+      //check 0 condition
+      if ([[PPFTstart+i*2]+FILE_TABLE+1]==0) then
+         [PPFTstart+i*2+FILE_TABLE]=-1;
+      endif;
+      //remove from the PPOT table
+      [PPFTstart+i*2]=-1;
+      [PPFTstart+i*2+1]=-1;
+      i=i+1;
+   endwhile;
+    
+   SP = 3*512;
+   [currentPTBR+6+1]="01";
+   [[currentPTBR+6]*512]=0;
+   [phySp-2]=0;
+ireturn;     
+endif;
+if (syscallno == 11) then //getpid syscall
+   alias processPID S2; 
+   processPID = (PTBR-1024)/8;
+   if (processPID < 0) then
+      [phySp-2]=-1;
+      ireturn;
+   endif;
+   [phySp-2]=processPID;
+   ireturn;
+endif;
+if (syscallno == 12) then //getppid syscall
+   //print "in getppid";
+   alias currentProcessPID S2;
+   alias parentProcessPID S3;
+   currentProcessPID = (PTBR-1024)/8;
+   parentProcessPID = [READY_LIST + currentProcessPID*32 + 31];
+   if (parentProcessPID < 0) then
+      [phySp-2]=-1;
+      ireturn;
+   endif;
+   [phySp-2]=parentProcessPID;
+   ireturn;
+endif;

@@ -30,8 +30,7 @@ if(sysCallNo == 5) then
 		[physicalSP-2]=-1;
 		ireturn;
 	endif;
-	print("SysIn");
-	print(sysIn);
+	
 	alias fatIn S6;
 
 	fatIn = [FILE_TABLE + sysIn*2];
@@ -73,8 +72,7 @@ if(sysCallNo == 5) then
 	
 	[PCB + 16 + fd*2] = [PCB + 16 + fd*2] + 1;
 	[physicalSP - 2] = 0;
-	print("LseekValue");
-	print ([PCB + 16 + fd*2]);
+	
 	ireturn;
 endif;
 	
