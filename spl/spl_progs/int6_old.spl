@@ -72,19 +72,51 @@ if(pagesNew > 3) then
 	ireturn;
 endif;
 
-//
+//count the free pages in MEM_LIST
+
+alias freeP S5;
+freeP = 0;
+counter = 0;
+
+while(counter <= 63) do
+	if([MEM_LIST + counter]==0) then
+		freeP = freeP + 1;
+	endif;
+	counter = counter + 1;
+endwhile;
+
+//new Free P
+
+alias newFreeP S8;
+newFreeP = 0;
 
 counter = 0;
-while(counter < 6) do
+while(counter < 8) do
+	//count current pages 
+	if([PTBR+counter+1]=="01" || [PTBR+counter+1]=="11") then
+		newFreeP = newFreeP + 1;
+	endif;
+	counter = counter + 2;
+endwhile;
+
+
+
+// if free pages in memory is less than required pages then exit
+
+if( (freeP+newFreeP) < (pagesNew+1)) then
+	print("E3");
+	[physicalSP -2] =-2;
+	ireturn;
+endif;
+
+//Deallocate
+
+counter = 0;
+while(counter < 8) do
 	//deallocate the memory
 	if([PTBR+counter+1]=="01" || [PTBR+counter+1]=="11") then
-		[MEM_LIST + [PTBR + counter]] = [MEM_LIST + [PTBR + counter]]-1;	
-	else 
-		if([PTBR+counter]>=448) then
-			[DISK_LIST + [PTBR + counter]] = [DISK_LIST + [PTBR + counter]] - 1;
-		endif;
+		[MEM_LIST + [PTBR + counter]]=0;	
 	endif;
-	
 	[PTBR + counter]=-1;
 	[PTBR + counter+1]="00";
 	counter = counter + 2;
@@ -94,30 +126,56 @@ endwhile;
 //LOAD
 
 counter = 0;
-
-alias c3 S6;
+alias c2 S6;
+c2 = 0;
+alias c3 S7;
 c3 = 0;
 
-//for each valid page in basic block of program, store it's disk address in ptbr, make it invalid
+//for each valid page in basic block of program, find a free mem page
+//store the data block of the program in that free mem page
 
-
-while(c3 <= 2) do
+while((counter < 512) && (c3 < pagesNew)) do
 	
 	//if entry in basic block is valid
+	
 	if([512 + counter] != -1 || [512 + counter] != "") then
-		//store it in ptbr make 
-		[PTBR + c3*2] = [512 + counter];
-		[PTBR + c3*2 +1] = "00";
-		counter = counter + 1;
+		
+		//search for a free memory page
+		//when found store the data block to the found page
+		
+		while(c2 < 64) do
+			if([MEM_LIST + c2] == 0) then
+				[MEM_LIST + c2]=1;
+
+				load(c2,[512+counter]);
+				[PTBR + c3*2] = c2;
+				[PTBR + c3*2 + 1] = "01";
+				c3 = c3 + 1;
+				break;
+			endif;
+			c2 = c2 + 1;
+		endwhile;
+		
+		
 	else
-		[PTBR + c3*2] = -1;
-		[PTBR + c3*2 +1] = "00";
 		break;
 	endif;
-	c3 = c3 + 1;
+	counter = counter + 1;
 endwhile;
 
-[PTBR + 3*2 +1] = "01"; 
+//assign a stack page
+
+while(c2 < 64) do
+	if([MEM_LIST + c2]==0) then
+		[MEM_LIST + c2]=1;
+		[PTBR + 3*2] = c2;
+		[PTBR + 3*2 + 1] = "01";
+		break;
+	endif;
+	c2 = c2 +1;
+endwhile;
+		
+
 
 //close all files opened by current process
 

@@ -95,6 +95,7 @@ if([physicalSP-1]==14) then
 	waitingPID = S15;
 	alias counter S3;
 	counter = 0;
+	//Make waiting process ready
 	while(counter <= 31) do
 		if([READY_LIST + counter*32 + 1]==(100 + S2)) then
 			[READY_LIST + counter*32 + 1]=1;
@@ -171,10 +172,6 @@ while(counter<4) do
 	PageNo = Pagetable + 2*counter;
 	if([PageNo +1]=="11" || [PageNo +1]=="01") then
 		[MEM_LIST + [PageNo]] = [MEM_LIST + [PageNo]]-1;
-	else
-		if([PageNo]!=-1) then
-			[DISK_LIST + [PageNo]] = [DISK_LIST + [PageNo]]-1;
-		endif;
 	endif;
 	[PageNo+1]="00";
 	[PageNo]=-1;

@@ -21,3 +21,4 @@ integer main()
 	endif;
 	return 0;
 }
+//load --exec

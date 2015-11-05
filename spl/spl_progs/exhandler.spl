@@ -1,0 +1,157 @@
+alias Cause S0;
+alias VPagenum S1;
+alias Ip_addr S2;
+//print ("E");
+Cause = EFR %10;
+VPagenum  = (EFR/10) % 100;
+Ip_addr = (EFR/1000);
+
+// if cause is not 0, exit
+
+if(Cause != 0) then
+	print("EX Cause:");
+	print(Cause);
+	print("IP");
+	print(Ip_addr);
+	print("PID");
+	print (PTBR-1024)/8;
+	inline "JMP 11776";
+endif;
+
+if ([PTBR + VPagenum*2] == -1) then
+	print("Bad Address");
+	inline "JMP 11776";
+	ireturn;
+endif;
+
+alias freepage S3;
+freepage = 0;
+alias diskB S5;
+diskB = [PTBR + VPagenum*2];
+while(freepage <= 63) do
+	if([MEM_LIST + freepage]==0) then
+		//print "inMem";
+		load(freepage,diskB);
+		
+		[PTBR + VPagenum*2] = freepage;
+		[PTBR + VPagenum*2+1] = "11";
+		[MEM_LIST + freepage] = 1;
+		
+		if(diskB > 447) then
+			[DISK_LIST + diskB] = [DISK_LIST + diskB]-1;
+		endif;
+		break;
+	else
+		freepage = freepage + 1;
+	endif;
+endwhile;
+
+alias page S4;
+page = PTBR + VPagenum*2;
+
+
+
+
+if(freepage >= 64) then
+	//Page Replacement Algorithm
+	
+	//print "notInMem";
+	
+	//print(page);
+
+	while(1==1) do
+		
+		//skip if the page is stack page, i.e. 4th page;
+		//first page -> 0, 2nd -> 2, 3rd -> 4, 4th -> 6
+		
+		//fouth page of a process is in Word no. : 6,14,22,...
+		//it is of form 8*n-2
+		
+		if((page-PTBR+2)%8 == 0) then
+			
+			page=page+2;
+			//check for PTBR limit
+			if(page > 1279) then
+				page=1024;
+			endif;
+			
+			continue;
+		endif;
+		
+		
+
+		if([page+1]=="01" || [page+1]=="11") then
+			
+			//skip if page is shared and valid
+		
+			if([MEM_LIST+[page]]>1) then
+				page = page+2;
+				
+				//check for PTBR limit
+				if(page > 1279) then
+					page=1024;
+				endif;
+				
+				continue;
+			endif;
+		
+			if([page+1] == "11") then
+				[page+1] = "01";
+			else
+				//VICTIM PAGE
+				
+				//swap out the process
+				diskB = 448;
+				while(diskB < 512) do
+					if([DISK_LIST + diskB]==0) then
+						break;
+					else
+						diskB = diskB+1;
+					endif;
+				endwhile;
+				
+				//if no free disk block found exit
+				if(diskB >= 512) then
+					print("DISK Full");
+					inline "JMP 11776" ;
+				endif;
+				
+				store([page],diskB);
+				[DISK_LIST + diskB] = 1;
+				store(6,20);
+				freepage = [page];
+				[page] = diskB;
+				[page+1] = "00";
+				
+				break;
+			endif;
+		endif;
+		
+		page = page + 2;
+		//check for PTBR limit
+		if(page > 1279) then
+			page=1024;
+		endif;	
+				
+	endwhile;
+	//diskBlock of New Process
+	
+	diskB = [PTBR + VPagenum*2];
+	
+	
+	load(freepage,diskB);
+	
+	if(diskB > 448) then
+		[DISK_LIST + diskB]=[DISK_LIST + diskB]-1;
+		store(6,20);
+	endif;
+	[PTBR + VPagenum*2] = freepage;
+	[PTBR + VPagenum*2+1] ="11";
+	
+endif;
+
+SP = SP + 1;
+alias physicalSP S6;
+physicalSP = ([PTBR + 2*(SP/512)]*512 + (SP)%512);
+[physicalSP] = Ip_addr;
+ireturn;

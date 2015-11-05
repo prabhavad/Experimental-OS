@@ -4,7 +4,6 @@
 //| PID | State | BP	|SP	 |IP   |PTBR  |PTLR	  |R0-R7  |PPOFT	| Free	|
 //===========================================================================
 
-//print("INT EXEC");
 alias physicalSP S0;
 physicalSP = ([PTBR + 2*(SP/512)]*512 + (SP)%512);
 
@@ -19,6 +18,8 @@ if([physicalSP-1]==12) then
 	[physicalSP-2]=[READY_LIST + (PTBR-1024)*4 + 31];
 	ireturn;
 endif;
+//~ print("INT EXEC");
+//~ print (PTBR-1024)/8;
 
 
 fileName = [physicalSP-3];
@@ -100,6 +101,8 @@ c3 = 0;
 
 //for each valid page in basic block of program, store it's disk address in ptbr, make it invalid
 
+//Store the basic block of the current code in 1472
+[1472 + (PTBR-1024)/8] = [FAT + fatIndex*8 + 2];
 
 while(c3 <= 2) do
 	

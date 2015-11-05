@@ -1,0 +1,152 @@
+alias Cause S0;
+alias VPagenum S1;
+alias Ip_addr S2;
+alias basic S9;
+//print ("E");
+Cause = EFR %10;
+VPagenum  = (EFR/10) % 100;
+Ip_addr = (EFR/1000);
+
+// if cause is not 0, exit
+
+if(Cause != 0) then
+	print("EX Cause:");
+	print(Cause);
+	print("IP");
+	print(Ip_addr);
+	print("PID");
+	print (PTBR-1024)/8;
+	inline "JMP 11776";
+endif;
+
+if ([PTBR + VPagenum*2] == -1) then
+	print("Bad Address");
+	inline "JMP 11776";
+	ireturn;
+endif;
+
+alias freepage S3;
+freepage = 0;
+alias diskB S5;
+diskB = [PTBR + VPagenum*2];
+while(freepage <= 63) do
+	if([MEM_LIST + freepage]==0) then
+		//print "inMem";
+		load(freepage,diskB);
+		
+		[PTBR + VPagenum*2] = freepage;
+		[PTBR + VPagenum*2+1] = "11";
+		[MEM_LIST + freepage] = 1;
+		
+		break;
+	else
+		freepage = freepage + 1;
+	endif;
+endwhile;
+
+alias page S4;
+page = PTBR + VPagenum*2;
+
+
+if(freepage >= 64) then
+	//Page Replacement Algorithm
+	
+	//print "notInMem";
+	
+	//print(page);
+
+	while(1==1) do
+		
+		//skip if the page is stack page, i.e. 4th page;
+		//first page -> 0, 2nd -> 2, 3rd -> 4, 4th -> 6
+		
+		//fouth page of a process is in Word no. : 6,14,22,...
+		//it is of form 8*n-2
+		
+		if((page-PTBR+2)%8 == 0) then
+			
+			page=page+2;
+			//check for PTBR limit
+			if(page > 1279) then
+				page=1032;
+			endif;
+			
+			continue;
+		endif;
+		
+		
+		
+		if([page+1]=="01" || [page+1]=="11") then
+			
+			//skip if page is shared and valid
+		
+			if([MEM_LIST+[page]]>1) then
+				page = page+2;
+				
+				//check for PTBR limit
+				if(page > 1279) then
+					page=1032;
+				endif;
+				
+				continue;
+			endif;
+		
+			if([page+1] == "11") then
+				[page+1] = "01";
+			else
+				diskB = [1472 + (page-1024)/8];
+				if(diskB != -1) then
+					//VICTIM PAGE
+					//~ print("vic");
+					freepage = [page];
+					
+					load(1,diskB);
+					//~ print(diskB);
+					if ((page-PTBR)%8 == 0) then
+						diskB=[512];
+					endif;
+					
+					if (((page-PTBR)%8 == 2)||((page-PTBR)%8 == -6)) then
+						diskB=[512+1];
+					endif;
+					
+					if (((page-PTBR)%8 == 4)||((page-PTBR)%8 == -4)) then
+						diskB=[512+2];
+					endif;
+					//~ print("ASFD");
+					//~ print(diskB);
+					[page] = diskB;
+					[page+1] = "00";
+					//~ print("end of vic");
+					break;
+				endif;
+			endif;
+		endif;
+		
+		page = page + 2;
+		//check for PTBR limit
+		if(page > 1279) then
+			page=1032;
+		endif;	
+				
+	endwhile;
+	//diskBlock of New Process
+	
+	diskB = [PTBR + VPagenum*2];
+	//~ print("Det");
+	//~ print(freepage);
+	//~ print(diskB);
+	//~ print ("eod");
+	load(freepage,diskB);
+	
+	[PTBR + VPagenum*2] = freepage;
+	[PTBR + VPagenum*2+1] ="11";
+	
+endif;
+
+SP = SP + 1;
+alias physicalSP S6;
+physicalSP = ([PTBR + 2*(SP/512)]*512 + (SP)%512);
+[physicalSP] = Ip_addr;
+//~ print("End of Exec");
+ireturn;

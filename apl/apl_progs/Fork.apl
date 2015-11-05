@@ -1,39 +1,13 @@
 integer main()
 {
 	integer pid;	
-	print ("Before Fork");
-	
-	pid = Fork();
-	print(pid);
-	
-	pid = Fork();
-	print(pid);
-	
-	pid = Fork();
-	print(pid);
-	
-	pid = Fork();
-	print(pid);
-	
-	print("aFTER");
 	integer e,a;
-	
-	if(pid == -2) then
-		print("Child Process");
-		a=1;
-		while(a<=20) do
-			print(a);
-			a=a+2;
-		endwhile;
-		
-	else
-		print("Parent Process");
-		
-		a=2;
-		while(a<=20) do
-			print(a);
-			a=a+2;
-		endwhile;
-	endif;
+	e = 0;
+	while(e<5) do
+		pid = Fork();
+
+		print (pid);
+		e=e+1;
+	endwhile;
 	return 0;
 }
